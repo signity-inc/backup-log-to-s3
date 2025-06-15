@@ -1,0 +1,80 @@
+name: Update YUM Repository
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  update-repo:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout gh-pages branch
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create repo directories
+        run: |
+          mkdir -p rpm/releases
+          mkdir -p rpm/repodata
+
+      - name: Download RPM packages from release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Get the latest release
+          RELEASE_DATA=$(curl -s "https://api.github.com/repos/${{ github.repository }}/releases/latest")
+          
+          # Download all RPM files
+          echo "$RELEASE_DATA" | jq -r '.assets[] | select(.name | endswith(".rpm")) | .browser_download_url' | while read url; do
+            echo "Downloading: $url"
+            curl -L "$url" -o "rpm/releases/$(basename "$url")"
+          done
+
+      - name: Install createrepo
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y createrepo-c
+
+      - name: Create repository metadata
+        run: |
+          createrepo rpm/releases/
+
+      - name: Create .repo file
+        run: |
+          cat > rpm/backup-log-to-s3.repo << 'EOF'
+          [backup-log-to-s3]
+          name=backup-log-to-s3
+          baseurl=https://signity-inc.github.io/backup-log-to-s3/rpm/releases/
+          enabled=1
+          gpgcheck=0
+          EOF
+
+      - name: Create index page
+        run: |
+          cat > index.html << 'EOF'
+          <!DOCTYPE html>
+          <html>
+          <head>
+              <title>backup-log-to-s3 Repository</title>
+          </head>
+          <body>
+              <h1>backup-log-to-s3 Repository</h1>
+              <p>YUM/DNF repository for backup-log-to-s3</p>
+              <h2>Installation</h2>
+              <pre>
+          sudo dnf config-manager --add-repo https://signity-inc.github.io/backup-log-to-s3/rpm/backup-log-to-s3.repo
+          sudo dnf install backup-log-to-s3
+              </pre>
+          </body>
+          </html>
+          EOF
+
+      - name: Commit and push
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add .
+          git commit -m "Update YUM repository for release ${{ github.event.release.tag_name }}" || echo "No changes to commit"
+          git push
