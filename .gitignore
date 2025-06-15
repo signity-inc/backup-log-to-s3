@@ -1,0 +1,60 @@
+backup-log-to-s3
+.tool-versions
+.claude/
+
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+log-backup
+log-backup-*
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool, specifically when used with LiteIDE
+*.out
+coverage.html
+
+# Go workspace file
+go.work
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Log files
+*.log
+
+# Distribution files
+dist/
+
+# Test files
+/tmp/log-backup-test/
+
+# Build artifacts
+bin/
+build/
+
+# Local configuration files
+config.local.*
+.env.local
+
+# Backup files
+*.bak
+*.backup
+*.tmp
