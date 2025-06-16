@@ -174,6 +174,21 @@ func TestConvertGlobPattern(t *testing.T) {
 			pattern: "/var/log/app/access-YYYYMMDD.log.gz",
 			want:    "/var/log/app/access-*.log.gz",
 		},
+		{
+			name:    "YYYY_MM_DD pattern",
+			pattern: "log_YYYY_MM_DD.gz",
+			want:    "log_*.gz",
+		},
+		{
+			name:    "Mixed patterns with YYYY_MM_DD",
+			pattern: "app-YYYYMMDD-backup-YYYY_MM_DD.gz",
+			want:    "app-*-backup-*.gz",
+		},
+		{
+			name:    "YYYY/MM/DD pattern priority over YYYYMMDD",
+			pattern: "logs/YYYY/MM/DD-YYYYMMDD.gz",
+			want:    "logs/*-*.gz",
+		},
 	}
 
 	for _, tt := range tests {

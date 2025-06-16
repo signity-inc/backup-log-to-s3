@@ -23,12 +23,15 @@ backup-log-to-s3 -bucket my-logs -prefix archived -delete "1 month" "/var/log/ng
 
 # ドライランで処理対象を確認
 backup-log-to-s3 -bucket my-logs -prefix test -dry-run "1 day" "*YYYYMMDD.log"
+
+# アンダースコア形式の日付ファイル
+backup-log-to-s3 -bucket my-logs -prefix "logs/YYYY/MM" "1 month" "system_YYYY_MM_DD.log.gz"
 ```
 
 ### 引数
 
 - `period`: 対象期間（例: "1 day", "7 days", "1 month", "1 year"）
-- `glob_pattern`: YYYYMMDD、YYYY-MM-DD、またはYYYY/MM/DD形式の日付を含むファイルパターン
+- `glob_pattern`: YYYYMMDD、YYYY-MM-DD、YYYY/MM/DD、またはYYYY_MM_DD形式の日付を含むファイルパターン
 
 ### オプション
 
@@ -98,9 +101,11 @@ backup-log-to-s3 -bucket my-logs -prefix test -dry-run "1 day" "*YYYYMMDD.log"
 - `"*YYYYMMDD.log.gz"` - `app20241215.log.gz`にマッチ
 - `"YYYY-MM-DD.gz"` - `2024-12-15.gz`にマッチ
 - `"YYYY/MM/DD.gz"` - `2024/12/15.gz`にマッチ
+- `"YYYY_MM_DD.gz"` - `2024_12_15.gz`にマッチ
 - `"/var/log/app*YYYYMMDD.gz"` - `/var/log/app20241215.gz`にマッチ
 - `"nginx-YYYY-MM-DD.log.gz"` - `nginx-2024-12-15.log.gz`にマッチ
 - `"access_YYYY/MM/DD.log.gz"` - `access_2024/12/15.log.gz`にマッチ
+- `"system_YYYY_MM_DD.log.gz"` - `system_2024_12_15.log.gz`にマッチ
 
 ## インストール
 
@@ -169,6 +174,9 @@ backup-log-to-s3 -bucket my-logs -prefix "logs/YYYY/MM" "1 month" "*YYYYMMDD.log
 
 # 年月日別ディレクトリ構造
 backup-log-to-s3 -bucket my-logs -prefix "logs/YYYY/MM/DD" "1 month" "*YYYYMMDD.log.gz"
+
+# アンダースコア形式のファイル名
+backup-log-to-s3 -bucket my-logs -prefix "logs/YYYY/MM" "1 month" "system_YYYY_MM_DD.log.gz"
 ```
 
 ### 高度な使用例
