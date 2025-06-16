@@ -1,0 +1,5 @@
+[backup-log-to-s3]
+name=backup-log-to-s3
+baseurl=https://signity-inc.github.io/backup-log-to-s3/rpm/releases/
+enabled=1
+gpgcheck=0
