@@ -1,6 +1,7 @@
 .DEFAULT_GOAL := help
 BINARY_NAME=backup-log-to-s3
-VERSION=1.0.0
+# Get version from git tag, fallback to dev if not tagged
+VERSION=$(shell git describe --tags --always 2>/dev/null || echo "dev")
 BUILD_TIME=$(shell date +%Y-%m-%dT%H:%M:%S)
 GIT_COMMIT=$(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 
@@ -28,7 +29,7 @@ STATIC_LDFLAGS=-ldflags "-extldflags '-static' -X main.Version=$(VERSION) -X mai
 .PHONY: ci/test ci/lint ci/build ci/release
 .PHONY: docs/generate docs/serve
 .PHONY: debug/test debug/run
-.PHONY: version/show version/bump
+.PHONY: version/show version/bump version/bump/patch version/bump/minor version/bump/major version/tag version/release
 
 # ==============================================================================
 # Primary Commands (最もよく使うコマンド)
@@ -302,14 +303,145 @@ debug/run: build/dev ## デバッグモード実行
 	./$(BINARY_NAME) -verbose -dry-run "*YYYYMMDD.log.gz"
 
 # バージョン管理
-version/show: ## バージョン表示
-	@echo "Version: $(VERSION)"
-	@echo "Build Time: $(BUILD_TIME)"
-	@echo "Git Commit: $(GIT_COMMIT)"
+version/show: ## 現在のバージョン表示
+	@echo "Current version from git: $(VERSION)"
+	@echo "Git tags:"
+	@git tag -l "v*" | tail -5
 
-version/bump: ## バージョン更新
-	@echo "Version bump not implemented yet"
-	@echo "TODO: Add version bump functionality"
+version/bump/patch: ## パッチバージョンを上げる (x.x.1 -> x.x.2)
+	@# Get current version from git tags
+	@CURRENT_VERSION=$$(git tag -l | sort -V | tail -1 2>/dev/null || echo "v0.0.0"); \
+	CURRENT_VERSION=$${CURRENT_VERSION#v}; \
+	echo "Current version: $$CURRENT_VERSION"; \
+	MAJOR=$$(echo $$CURRENT_VERSION | cut -d. -f1); \
+	MINOR=$$(echo $$CURRENT_VERSION | cut -d. -f2); \
+	PATCH=$$(echo $$CURRENT_VERSION | cut -d. -f3); \
+	NEW_PATCH=$$(($$PATCH + 1)); \
+	NEW_VERSION="$$MAJOR.$$MINOR.$$NEW_PATCH"; \
+	echo "New version: $$NEW_VERSION"; \
+	if ! git diff --quiet || ! git diff --cached --quiet; then \
+		echo "Error: Uncommitted changes found. Please commit your changes first."; \
+		exit 1; \
+	fi; \
+	git tag -a "v$$NEW_VERSION" -m "Release version $$NEW_VERSION"; \
+	echo "Created tag: v$$NEW_VERSION"
+
+version/bump/minor: ## マイナーバージョンを上げる (x.1.x -> x.2.0)
+	@# Get current version from git tags
+	@CURRENT_VERSION=$$(git tag -l | sort -V | tail -1 2>/dev/null || echo "v0.0.0"); \
+	CURRENT_VERSION=$${CURRENT_VERSION#v}; \
+	echo "Current version: $$CURRENT_VERSION"; \
+	MAJOR=$$(echo $$CURRENT_VERSION | cut -d. -f1); \
+	MINOR=$$(echo $$CURRENT_VERSION | cut -d. -f2); \
+	NEW_MINOR=$$(($$MINOR + 1)); \
+	NEW_VERSION="$$MAJOR.$$NEW_MINOR.0"; \
+	echo "New version: $$NEW_VERSION"; \
+	if ! git diff --quiet || ! git diff --cached --quiet; then \
+		echo "Error: Uncommitted changes found. Please commit your changes first."; \
+		exit 1; \
+	fi; \
+	git tag -a "v$$NEW_VERSION" -m "Release version $$NEW_VERSION"; \
+	echo "Created tag: v$$NEW_VERSION"
+
+version/bump/major: ## メジャーバージョンを上げる (1.x.x -> 2.0.0)
+	@# Get current version from git tags
+	@CURRENT_VERSION=$$(git tag -l | sort -V | tail -1 2>/dev/null || echo "v0.0.0"); \
+	CURRENT_VERSION=$${CURRENT_VERSION#v}; \
+	echo "Current version: $$CURRENT_VERSION"; \
+	MAJOR=$$(echo $$CURRENT_VERSION | cut -d. -f1); \
+	NEW_MAJOR=$$(($$MAJOR + 1)); \
+	NEW_VERSION="$$NEW_MAJOR.0.0"; \
+	echo "New version: $$NEW_VERSION"; \
+	if ! git diff --quiet || ! git diff --cached --quiet; then \
+		echo "Error: Uncommitted changes found. Please commit your changes first."; \
+		exit 1; \
+	fi; \
+	git tag -a "v$$NEW_VERSION" -m "Release version $$NEW_VERSION"; \
+	echo "Created tag: v$$NEW_VERSION"
+
+version/tag: ## 指定したバージョンでGitタグを作成
+	@read -p "Enter version to tag (without 'v' prefix): " VERSION_TO_TAG; \
+	echo "Creating git tag v$$VERSION_TO_TAG..."; \
+	if git tag -l "v$$VERSION_TO_TAG" | grep -q "v$$VERSION_TO_TAG"; then \
+		echo "Error: Tag v$$VERSION_TO_TAG already exists"; \
+		exit 1; \
+	fi; \
+	if ! git diff --quiet || ! git diff --cached --quiet; then \
+		echo "Error: Uncommitted changes found. Please commit your changes first."; \
+		exit 1; \
+	fi; \
+	git tag -a "v$$VERSION_TO_TAG" -m "Release version $$VERSION_TO_TAG"; \
+	echo "Created tag: v$$VERSION_TO_TAG"; \
+	echo "To push tags, run: git push origin v$$VERSION_TO_TAG"
+
+version/release: ## バージョンを上げてリリース（タグ作成まで）
+	@echo "Which version component to bump?"
+	@echo "  1) patch (x.x.1 -> x.x.2)"
+	@echo "  2) minor (x.1.x -> x.2.0)"
+	@echo "  3) major (1.x.x -> 2.0.0)"
+	@read -p "Enter choice [1-3]: " choice; \
+	CURRENT_VERSION=$$(git tag -l | sort -V | tail -1 2>/dev/null || echo "v0.0.0"); \
+	CURRENT_VERSION=$${CURRENT_VERSION#v}; \
+	case $$choice in \
+		1) \
+			MAJOR=$$(echo $$CURRENT_VERSION | cut -d. -f1); \
+			MINOR=$$(echo $$CURRENT_VERSION | cut -d. -f2); \
+			PATCH=$$(echo $$CURRENT_VERSION | cut -d. -f3); \
+			NEW_PATCH=$$(($$PATCH + 1)); \
+			NEW_VERSION="$$MAJOR.$$MINOR.$$NEW_PATCH" ;; \
+		2) \
+			MAJOR=$$(echo $$CURRENT_VERSION | cut -d. -f1); \
+			MINOR=$$(echo $$CURRENT_VERSION | cut -d. -f2); \
+			NEW_MINOR=$$(($$MINOR + 1)); \
+			NEW_VERSION="$$MAJOR.$$NEW_MINOR.0" ;; \
+		3) \
+			MAJOR=$$(echo $$CURRENT_VERSION | cut -d. -f1); \
+			NEW_MAJOR=$$(($$MAJOR + 1)); \
+			NEW_VERSION="$$NEW_MAJOR.0.0" ;; \
+		*) echo "Invalid choice"; exit 1 ;; \
+	esac; \
+	echo ""; \
+	echo "Bumping version from $$CURRENT_VERSION to $$NEW_VERSION"; \
+	if ! git diff --quiet || ! git diff --cached --quiet; then \
+		echo "Error: Uncommitted changes found. Please commit your changes first."; \
+		exit 1; \
+	fi; \
+	git tag -a "v$$NEW_VERSION" -m "Release version $$NEW_VERSION"; \
+	echo "Created tag: v$$NEW_VERSION"; \
+	echo ""; \
+	echo "Release preparation complete!"; \
+	echo "Do you want to push the release?"; \
+	echo "  1) Push main branch only"; \
+	echo "  2) Push tag only"; \
+	echo "  3) Push both main and tag"; \
+	echo "  4) Skip push (manual push later)"; \
+	read -p "Enter choice [1-4]: " push_choice; \
+	case $$push_choice in \
+		1) \
+			echo "Pushing main branch..."; \
+			git push origin main; \
+			echo "Main branch pushed. Don't forget to push the tag later: git push origin v$$NEW_VERSION" ;; \
+		2) \
+			echo "Pushing tag v$$NEW_VERSION..."; \
+			git push origin "v$$NEW_VERSION"; \
+			echo "Tag pushed. GitHub Actions will create the release." ;; \
+		3) \
+			echo "Pushing main branch..."; \
+			git push origin main; \
+			echo "Pushing tag v$$NEW_VERSION..."; \
+			git push origin "v$$NEW_VERSION"; \
+			echo "Both main and tag pushed. GitHub Actions will create the release." ;; \
+		4) \
+			echo "Skipping push. To publish manually:"; \
+			echo "  git push origin main"; \
+			echo "  git push origin v$$NEW_VERSION" ;; \
+		*) \
+			echo "Invalid choice. Skipping push. To publish manually:"; \
+			echo "  git push origin main"; \
+			echo "  git push origin v$$NEW_VERSION" ;; \
+	esac
+
+version/bump: version/release ## バージョン更新（version/releaseのエイリアス）
 
 # ==============================================================================
 # Aliases for backward compatibility

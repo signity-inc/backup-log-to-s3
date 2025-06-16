@@ -23,12 +23,14 @@ import (
 const (
 	DefaultLockFile     = "/var/run/backup-log-to-s3.lock"
 	DefaultStorageClass = "STANDARD_IA"
-	Version             = "1.0.0"
 	
 	// ANSI color codes
 	ColorRed    = "\033[31m"
 	ColorReset  = "\033[0m"
 )
+
+// Version is set by ldflags during build
+var Version = "dev"
 
 // Config holds the configuration for the backup tool
 type Config struct {
@@ -109,7 +111,7 @@ func NewBackupTool(config Config) (*BackupTool, error) {
 func parsePeriod(period string) (time.Duration, error) {
 	parts := strings.Fields(strings.TrimSpace(period))
 	if len(parts) != 2 {
-		return 0, fmt.Errorf("invalid period format. Expected format: '1 day', '7 days', '1 month', etc.")
+		return 0, fmt.Errorf("invalid period format. Expected format: '1 day', '7 days', '1 month', etc.\n\nExamples:\n  \"1 day\"     - Files older than 1 day\n  \"7 days\"    - Files older than 7 days\n  \"1 month\"   - Files older than 1 month\n  \"2 months\"  - Files older than 2 months\n  \"1 year\"    - Files older than 1 year")
 	}
 	
 	value := parts[0]
@@ -118,7 +120,7 @@ func parsePeriod(period string) (time.Duration, error) {
 	// Parse the numeric value
 	var intVal int
 	if _, err := fmt.Sscanf(value, "%d", &intVal); err != nil {
-		return 0, fmt.Errorf("invalid numeric value: %s", value)
+		return 0, fmt.Errorf("invalid numeric value: %s\n\nExamples:\n  \"1 day\"     - Files older than 1 day\n  \"7 days\"    - Files older than 7 days\n  \"1 month\"   - Files older than 1 month\n  \"2 months\"  - Files older than 2 months\n  \"1 year\"    - Files older than 1 year", value)
 	}
 	
 	// Convert based on unit
@@ -130,7 +132,7 @@ func parsePeriod(period string) (time.Duration, error) {
 	case "year", "years":
 		return time.Duration(intVal) * 24 * 365 * time.Hour, nil // Approximate 365 days
 	default:
-		return 0, fmt.Errorf("unsupported time unit: %s. Supported units: day/days, month/months, year/years", unit)
+		return 0, fmt.Errorf("unsupported time unit: %s. Supported units: day/days, month/months, year/years\n\nExamples:\n  \"1 day\"     - Files older than 1 day\n  \"7 days\"    - Files older than 7 days\n  \"1 month\"   - Files older than 1 month\n  \"2 months\"  - Files older than 2 months\n  \"1 year\"    - Files older than 1 year", unit)
 	}
 }
 
@@ -501,7 +503,7 @@ func (bt *BackupTool) Run(ctx context.Context, globPattern string) error {
 	if !strings.Contains(globPattern, "YYYYMMDD") &&
 		!strings.Contains(globPattern, "YYYY-MM-DD") &&
 		!strings.Contains(globPattern, "YYYY/MM/DD") {
-		return fmt.Errorf("invalid glob pattern. Must contain 'YYYYMMDD', 'YYYY-MM-DD', or 'YYYY/MM/DD'")
+		return fmt.Errorf("invalid glob pattern. Must contain 'YYYYMMDD', 'YYYY-MM-DD', or 'YYYY/MM/DD'\n\nExamples:\n  *YYYYMMDD.log.gz           - Matches app20241215.log.gz\n  YYYY-MM-DD.gz              - Matches 2024-12-15.gz\n  YYYY/MM/DD.gz              - Matches 2024/12/15.gz\n  /var/log/app*YYYYMMDD.gz   - Matches /var/log/app20241215.gz\n  nginx-YYYY-MM-DD.log.gz    - Matches nginx-2024-12-15.log.gz\n  access_YYYY/MM/DD.log.gz   - Matches access_2024/12/15.log.gz")
 	}
 
 	// Acquire lock
