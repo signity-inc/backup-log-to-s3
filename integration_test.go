@@ -455,6 +455,27 @@ func TestIntegrationDateBasedPrefix(t *testing.T) {
 			expectedS3Path: "logs/2024/12/db_2024_12_15.log.gz",
 			description:    "Underscore date format in filename",
 		},
+		{
+			name:           "User example - access.log June",
+			prefix:         "log/YYYY/MM",
+			fileName:       "access.log-20250601.gz",
+			expectedS3Path: "log/2025/06/access.log-20250601.gz",
+			description:    "User's specific example for June 2025",
+		},
+		{
+			name:           "User example - access.log May",
+			prefix:         "log/YYYY/MM",
+			fileName:       "access.log-20250530.gz",
+			expectedS3Path: "log/2025/05/access.log-20250530.gz",
+			description:    "User's specific example for May 2025",
+		},
+		{
+			name:           "Complex grouping by date",
+			prefix:         "backup/YYYY/MM/DD",
+			fileName:       "service-20240229.log.gz",
+			expectedS3Path: "backup/2024/02/29/service-20240229.log.gz",
+			description:    "Leap year edge case with full date grouping",
+		},
 	}
 
 	for _, tc := range testCases {

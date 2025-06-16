@@ -342,12 +342,14 @@ func processPrefixWithDate(prefix string, date time.Time) string {
 
 // convertGlobPattern converts user glob pattern to actual pattern
 func convertGlobPattern(pattern string) string {
-	// Replace YYYYMMDD with wildcard
-	pattern = strings.ReplaceAll(pattern, "YYYYMMDD", "*")
+	// Replace YYYY/MM/DD with wildcard first (longest pattern first)
+	pattern = strings.ReplaceAll(pattern, "YYYY/MM/DD", "*")
 	// Replace YYYY-MM-DD with wildcard
 	pattern = strings.ReplaceAll(pattern, "YYYY-MM-DD", "*")
-	// Replace YYYY/MM/DD with wildcard
-	pattern = strings.ReplaceAll(pattern, "YYYY/MM/DD", "*")
+	// Replace YYYY_MM_DD with wildcard
+	pattern = strings.ReplaceAll(pattern, "YYYY_MM_DD", "*")
+	// Replace YYYYMMDD with wildcard
+	pattern = strings.ReplaceAll(pattern, "YYYYMMDD", "*")
 	return pattern
 }
 
@@ -529,8 +531,9 @@ func (bt *BackupTool) Run(ctx context.Context, globPattern string) error {
 	// Validate glob pattern
 	if !strings.Contains(globPattern, "YYYYMMDD") &&
 		!strings.Contains(globPattern, "YYYY-MM-DD") &&
-		!strings.Contains(globPattern, "YYYY/MM/DD") {
-		return fmt.Errorf("invalid glob pattern. Must contain 'YYYYMMDD', 'YYYY-MM-DD', or 'YYYY/MM/DD'\n\nExamples:\n  *YYYYMMDD.log.gz           - Matches app20241215.log.gz\n  YYYY-MM-DD.gz              - Matches 2024-12-15.gz\n  YYYY/MM/DD.gz              - Matches 2024/12/15.gz\n  /var/log/app*YYYYMMDD.gz   - Matches /var/log/app20241215.gz\n  nginx-YYYY-MM-DD.log.gz    - Matches nginx-2024-12-15.log.gz\n  access_YYYY/MM/DD.log.gz   - Matches access_2024/12/15.log.gz")
+		!strings.Contains(globPattern, "YYYY/MM/DD") &&
+		!strings.Contains(globPattern, "YYYY_MM_DD") {
+		return fmt.Errorf("invalid glob pattern. Must contain 'YYYYMMDD', 'YYYY-MM-DD', 'YYYY/MM/DD', or 'YYYY_MM_DD'\n\nExamples:\n  *YYYYMMDD.log.gz           - Matches app20241215.log.gz\n  YYYY-MM-DD.gz              - Matches 2024-12-15.gz\n  YYYY/MM/DD.gz              - Matches 2024/12/15.gz\n  YYYY_MM_DD.gz              - Matches 2024_12_15.gz\n  /var/log/app*YYYYMMDD.gz   - Matches /var/log/app20241215.gz\n  nginx-YYYY-MM-DD.log.gz    - Matches nginx-2024-12-15.log.gz\n  access_YYYY/MM/DD.log.gz   - Matches access_2024/12/15.log.gz")
 	}
 
 	// Acquire lock
@@ -659,7 +662,7 @@ By default, local files are kept after upload. Use -delete to remove them.
 
 ARGUMENTS:
   period          Time period (e.g., "1 day", "7 days", "1 month", "1 year")
-  glob_pattern    File pattern with YYYYMMDD, YYYY-MM-DD, or YYYY/MM/DD date format
+  glob_pattern    File pattern with YYYYMMDD, YYYY-MM-DD, YYYY/MM/DD, or YYYY_MM_DD date format
 
 PERIOD EXAMPLES:
   "1 day"         - Files older than 1 day
@@ -672,9 +675,11 @@ PATTERN EXAMPLES:
   "*YYYYMMDD.log.gz"           - Matches app20241215.log.gz
   "YYYY-MM-DD.gz"              - Matches 2024-12-15.gz
   "YYYY/MM/DD.gz"              - Matches 2024/12/15.gz
+  "YYYY_MM_DD.gz"              - Matches 2024_12_15.gz
   "/var/log/app*YYYYMMDD.gz"   - Matches /var/log/app20241215.gz
   "nginx-YYYY-MM-DD.log.gz"    - Matches nginx-2024-12-15.log.gz
   "access_YYYY/MM/DD.log.gz"   - Matches access_2024/12/15.log.gz
+  "system_YYYY_MM_DD.log.gz"   - Matches system_2024_12_15.log.gz
 
 OPTIONS:
   -bucket string
