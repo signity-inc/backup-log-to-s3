@@ -35,7 +35,7 @@ backup-log-to-s3 -bucket my-logs -prefix test -dry-run "1 day" "*YYYYMMDD.log"
 | オプション | 説明 | デフォルト | 必須 |
 |-----------|------|------------|------|
 | `-bucket` | S3バケット名 | - | ✓ |
-| `-prefix` | S3プレフィックス | - | ✓ |
+| `-prefix` | S3プレフィックス（日付フォーマット対応） | - | ✓ |
 | `-region` | AWSリージョン | AWS_DEFAULT_REGION | |
 | `-output` | ログファイル出力先 | stdout | |
 | `-lock` | ロックファイルパス | /var/run/backup-log-to-s3.lock | |
@@ -64,6 +64,34 @@ backup-log-to-s3 -bucket my-logs -prefix test -dry-run "1 day" "*YYYYMMDD.log"
 - `"1 month"` - 1ヶ月以上経過したファイル
 - `"2 months"` - 2ヶ月以上経過したファイル
 - `"1 year"` - 1年以上経過したファイル
+
+## 日付ベースディレクトリ構造
+
+`-prefix`オプションでは、ファイル名から抽出した日付を使用して、S3内に日付ベースのディレクトリ構造を作成できます。
+
+### 日付フォーマットトークン
+
+| トークン | 説明 | 例 |
+|----------|------|-----|
+| `YYYY` | 4桁の年 | 2024 |
+| `MM` | 2桁の月（ゼロ埋め） | 12 |
+| `DD` | 2桁の日（ゼロ埋め） | 15 |
+
+### プレフィックスの例
+
+| プレフィックス | 保存先パス | 説明 |
+|---------------|------------|------|
+| `"logs"` | `bucket/logs/filename.log.gz` | 従来通り（日付置換なし） |
+| `"logs/YYYY"` | `bucket/logs/2024/filename.log.gz` | 年別ディレクトリ |
+| `"logs/YYYY/MM"` | `bucket/logs/2024/12/filename.log.gz` | 年月別ディレクトリ |
+| `"logs/YYYY/MM/DD"` | `bucket/logs/2024/12/15/filename.log.gz` | 年月日別ディレクトリ |
+| `"backup/YYYY/MM"` | `bucket/backup/2024/12/filename.log.gz` | カスタムベースパス |
+
+### 注意事項
+
+- 日付はファイル名から自動抽出されます（対応パターン：`YYYYMMDD`, `YYYY-MM-DD`, `YYYY/MM/DD`, `YYYY_MM_DD`）
+- ファイル名に日付パターンが含まれていない場合、アップロードはエラーで失敗します
+- プレフィックスに日付トークン（`YYYY`, `MM`, `DD`）が含まれていない場合は、従来通りの動作となります
 
 ### パターンの例
 
@@ -127,15 +155,36 @@ curl -L https://github.com/signity-inc/backup-log-to-s3/releases/latest/download
 
 ## 使用例
 
+### 基本的な使用例
+
+```bash
+# 従来通り（日付ディレクトリなし）
+backup-log-to-s3 -bucket my-logs -prefix logs "7 days" "*YYYYMMDD.log.gz"
+
+# 年別ディレクトリ構造
+backup-log-to-s3 -bucket my-logs -prefix "logs/YYYY" "1 month" "*YYYYMMDD.log.gz"
+
+# 年月別ディレクトリ構造
+backup-log-to-s3 -bucket my-logs -prefix "logs/YYYY/MM" "1 month" "*YYYYMMDD.log.gz"
+
+# 年月日別ディレクトリ構造
+backup-log-to-s3 -bucket my-logs -prefix "logs/YYYY/MM/DD" "1 month" "*YYYYMMDD.log.gz"
+```
+
+### 高度な使用例
+
 ```bash
 # 特定のAWSプロファイルとリージョンを使用
-backup-log-to-s3 -profile production -region eu-west-1 -bucket eu-logs -prefix app "30 days" "*YYYYMMDD.log.gz"
+backup-log-to-s3 -profile production -region eu-west-1 -bucket eu-logs -prefix "app/YYYY/MM" "30 days" "*YYYYMMDD.log.gz"
 
 # 詳細ログをファイルに出力
-backup-log-to-s3 -bucket logs -prefix archived -verbose -output /var/log/backup.log "1 month" "/logs/YYYY/MM/DD.log.gz"
+backup-log-to-s3 -bucket logs -prefix "archived/YYYY/MM" -verbose -output /var/log/backup.log "1 month" "/logs/*YYYYMMDD.log.gz"
 
 # S3互換ストレージ用カスタムエンドポイント
-backup-log-to-s3 -bucket minio-bucket -prefix backups -endpoint-url http://localhost:9000 "7 days" "*YYYYMMDD.log"
+backup-log-to-s3 -bucket minio-bucket -prefix "backups/YYYY" -endpoint-url http://localhost:9000 "7 days" "*YYYYMMDD.log"
+
+# アップロード後にローカルファイルを削除
+backup-log-to-s3 -bucket my-logs -prefix "logs/YYYY/MM/DD" -delete "30 days" "*YYYYMMDD.log.gz"
 ```
 
 ## AWS認証

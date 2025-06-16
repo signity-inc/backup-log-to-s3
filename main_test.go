@@ -277,3 +277,125 @@ func TestShowUsage(t *testing.T) {
 	// This is a limitation of the current design
 	t.Skip("showUsage prints to stdout, requires output capture for proper testing")
 }
+
+// TestProcessPrefixWithDate tests the processPrefixWithDate function
+func TestProcessPrefixWithDate(t *testing.T) {
+	// Test date: 2024-12-15
+	testDate := time.Date(2024, 12, 15, 10, 30, 0, 0, time.UTC)
+	
+	tests := []struct {
+		name   string
+		prefix string
+		want   string
+	}{
+		{
+			name:   "No date tokens",
+			prefix: "logs",
+			want:   "logs",
+		},
+		{
+			name:   "Year only",
+			prefix: "logs/YYYY",
+			want:   "logs/2024",
+		},
+		{
+			name:   "Year and month",
+			prefix: "logs/YYYY/MM",
+			want:   "logs/2024/12",
+		},
+		{
+			name:   "Full date",
+			prefix: "logs/YYYY/MM/DD",
+			want:   "logs/2024/12/15",
+		},
+		{
+			name:   "Custom base path",
+			prefix: "backup/YYYY/MM",
+			want:   "backup/2024/12",
+		},
+		{
+			name:   "Multiple year tokens",
+			prefix: "YYYY/backup/YYYY",
+			want:   "2024/backup/2024",
+		},
+		{
+			name:   "Mixed with text",
+			prefix: "app-YYYY-MM-logs",
+			want:   "app-2024-12-logs",
+		},
+		{
+			name:   "All tokens",
+			prefix: "YYYY-MM-DD",
+			want:   "2024-12-15",
+		},
+		{
+			name:   "Empty prefix",
+			prefix: "",
+			want:   "",
+		},
+		{
+			name:   "Complex path",
+			prefix: "s3://bucket/YYYY/MM/DD/logs",
+			want:   "s3://bucket/2024/12/15/logs",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := processPrefixWithDate(tt.prefix, testDate)
+			if got != tt.want {
+				t.Errorf("processPrefixWithDate(%q, %v) = %q, want %q", tt.prefix, testDate, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestProcessPrefixWithDateEdgeCases tests edge cases for processPrefixWithDate
+func TestProcessPrefixWithDateEdgeCases(t *testing.T) {
+	tests := []struct {
+		name   string
+		date   time.Time
+		prefix string
+		want   string
+	}{
+		{
+			name:   "New Year's Day",
+			date:   time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
+			prefix: "logs/YYYY/MM/DD",
+			want:   "logs/2024/01/01",
+		},
+		{
+			name:   "Leap year Feb 29",
+			date:   time.Date(2024, 2, 29, 0, 0, 0, 0, time.UTC),
+			prefix: "logs/YYYY/MM/DD",
+			want:   "logs/2024/02/29",
+		},
+		{
+			name:   "Year boundary",
+			date:   time.Date(2023, 12, 31, 23, 59, 59, 0, time.UTC),
+			prefix: "backup/YYYY/MM/DD",
+			want:   "backup/2023/12/31",
+		},
+		{
+			name:   "Future date",
+			date:   time.Date(2030, 7, 15, 12, 0, 0, 0, time.UTC),
+			prefix: "logs/YYYY/MM",
+			want:   "logs/2030/07",
+		},
+		{
+			name:   "Far past date",
+			date:   time.Date(1990, 3, 5, 9, 15, 30, 0, time.UTC),
+			prefix: "archive/YYYY",
+			want:   "archive/1990",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := processPrefixWithDate(tt.prefix, tt.date)
+			if got != tt.want {
+				t.Errorf("processPrefixWithDate(%q, %v) = %q, want %q", tt.prefix, tt.date, got, tt.want)
+			}
+		})
+	}
+}

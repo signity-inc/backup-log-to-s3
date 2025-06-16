@@ -328,6 +328,18 @@ func extractDateFromFilename(filename string) (time.Time, error) {
 	return time.Time{}, fmt.Errorf("no date pattern found in filename: %s", filename)
 }
 
+// processPrefixWithDate processes a prefix that may contain date format tokens
+// Returns the processed prefix with date values substituted
+func processPrefixWithDate(prefix string, date time.Time) string {
+	// Replace date format tokens with actual date values
+	result := prefix
+	result = strings.ReplaceAll(result, "YYYY", date.Format("2006"))
+	result = strings.ReplaceAll(result, "MM", date.Format("01"))
+	result = strings.ReplaceAll(result, "DD", date.Format("02"))
+	
+	return result
+}
+
 // convertGlobPattern converts user glob pattern to actual pattern
 func convertGlobPattern(pattern string) string {
 	// Replace YYYYMMDD with wildcard
@@ -394,7 +406,22 @@ func printError(format string, args ...interface{}) {
 // uploadToS3 uploads a file to S3
 func (bt *BackupTool) uploadToS3(ctx context.Context, filePath string) error {
 	filename := filepath.Base(filePath)
-	s3Key := fmt.Sprintf("%s/%s", bt.config.S3Prefix, filename)
+	
+	// Generate S3 key with optional date-based directory structure in prefix
+	var s3Key string
+	if strings.Contains(bt.config.S3Prefix, "YYYY") || strings.Contains(bt.config.S3Prefix, "MM") || strings.Contains(bt.config.S3Prefix, "DD") {
+		// Extract date from filename
+		fileDate, err := extractDateFromFilename(filename)
+		if err != nil {
+			return fmt.Errorf("failed to extract date from filename %s for date-based prefix: %w", filename, err)
+		}
+		
+		// Process prefix with date substitution
+		processedPrefix := processPrefixWithDate(bt.config.S3Prefix, fileDate)
+		s3Key = fmt.Sprintf("%s/%s", processedPrefix, filename)
+	} else {
+		s3Key = fmt.Sprintf("%s/%s", bt.config.S3Prefix, filename)
+	}
 
 	bt.logger.Printf("Uploading: %s -> s3://%s/%s", filePath, bt.config.S3Bucket, s3Key)
 
@@ -554,7 +581,7 @@ func parseFlags() (Config, string, string, error) {
 	var globPattern string
 
 	flag.StringVar(&config.S3Bucket, "bucket", "", "S3 bucket name (required)")
-	flag.StringVar(&config.S3Prefix, "prefix", "", "S3 prefix (required)")
+	flag.StringVar(&config.S3Prefix, "prefix", "", "S3 prefix (supports date format like logs/YYYY/MM/DD) (required)")
 	flag.StringVar(&config.AWSRegion, "region", "", "AWS region (uses AWS_DEFAULT_REGION if not specified)")
 	flag.StringVar(&config.OutputFile, "output", "", "Output log file path (outputs to stdout if not specified)")
 	flag.StringVar(&config.LockFile, "lock", DefaultLockFile, "Lock file path")
@@ -653,7 +680,8 @@ OPTIONS:
   -bucket string
         S3 bucket name (required)
   -prefix string
-        S3 prefix (required)
+        S3 prefix (supports date format: YYYY, MM, DD tokens) (required)
+        Examples: "logs", "logs/YYYY", "logs/YYYY/MM", "logs/YYYY/MM/DD"
   -region string
         AWS region (uses AWS_DEFAULT_REGION if not specified)
   -output string
@@ -688,16 +716,33 @@ AWS CLI COMPATIBLE OPTIONS:
         The maximum socket connect time in seconds (0 means no timeout)
 
 EXAMPLES:
-  %s "1 day" "*YYYYMMDD.log.gz"
-  %s "7 days" "YYYY-MM-DD.gz"
-  %s "1 month" "YYYY/MM/DD.gz"
-  %s -bucket my-logs -dry-run "7 days" "/var/log/app*YYYYMMDD.gz"
+  %s -bucket my-logs -prefix logs "1 day" "*YYYYMMDD.log.gz"
+  %s -bucket my-logs -prefix logs "7 days" "YYYY-MM-DD.gz"
+  %s -bucket my-logs -prefix logs "1 month" "YYYY/MM/DD.gz"
+  %s -bucket my-logs -prefix logs -dry-run "7 days" "/var/log/app*YYYYMMDD.gz"
+  
+PREFIX WITH DATE FORMAT EXAMPLES:
+  %s -bucket my-logs -prefix "logs" "1 month" "*YYYYMMDD.log.gz"
+    # Saves to: my-logs/logs/filename.log.gz (no date substitution)
+  %s -bucket my-logs -prefix "logs/YYYY" "1 month" "*YYYYMMDD.log.gz"
+    # Saves to: my-logs/logs/2024/filename.log.gz (year from filename date)
+  %s -bucket my-logs -prefix "logs/YYYY/MM" "1 month" "*YYYYMMDD.log.gz"
+    # Saves to: my-logs/logs/2024/12/filename.log.gz (year/month from filename date)
+  %s -bucket my-logs -prefix "logs/YYYY/MM/DD" "1 month" "*YYYYMMDD.log.gz"
+    # Saves to: my-logs/logs/2024/12/15/filename.log.gz (full date from filename)
+
+DATE TOKEN BEHAVIOR:
+  - YYYY: Replaced with 4-digit year from filename date (e.g., 2024)
+  - MM:   Replaced with 2-digit month from filename date (e.g., 12)
+  - DD:   Replaced with 2-digit day from filename date (e.g., 15)
+  - Date is extracted from filename patterns: YYYYMMDD, YYYY-MM-DD, YYYY/MM/DD, YYYY_MM_DD
+  - If filename contains no date pattern, upload will fail with error
 
 ENVIRONMENT VARIABLES:
   AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_DEFAULT_REGION
   See AWS documentation for authentication options.
 
-`, os.Args[0], DefaultLockFile, DefaultStorageClass, os.Args[0], os.Args[0], os.Args[0], os.Args[0])
+`, os.Args[0], DefaultLockFile, DefaultStorageClass, os.Args[0], os.Args[0], os.Args[0], os.Args[0], os.Args[0], os.Args[0], os.Args[0], os.Args[0])
 }
 
 func main() {
