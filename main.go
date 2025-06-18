@@ -169,11 +169,19 @@ func (bt *BackupTool) initAWS(ctx context.Context) error {
 	// Set explicit shared config files for systemd environments
 	// This ensures AWS config files are found even when running as systemd service
 	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		// Fallback to /root for systemd services running as root
+		if os.Getuid() == 0 {
+			homeDir = "/root"
+			err = nil
+		}
+	}
+	
 	if err == nil {
 		configFile := filepath.Join(homeDir, ".aws", "config")
 		credentialsFile := filepath.Join(homeDir, ".aws", "credentials")
 		
-		bt.logger.Printf("Checking AWS config files in: %s", filepath.Join(homeDir, ".aws"))
+		bt.logger.Printf("Checking AWS config files in: %s (homeDir: %s)", filepath.Join(homeDir, ".aws"), homeDir)
 		
 		if _, err := os.Stat(configFile); err == nil {
 			loadOptions = append(loadOptions, config.WithSharedConfigFiles([]string{configFile}))
