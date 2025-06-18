@@ -173,17 +173,8 @@ func (bt *BackupTool) initAWS(ctx context.Context) error {
 	
 	// Check if region will be available
 	if bt.config.AWSRegion == "" && os.Getenv("AWS_DEFAULT_REGION") == "" && os.Getenv("AWS_REGION") == "" {
-		// Also check ~/.aws/config default region
-		homeDir, _ := os.UserHomeDir()
-		configFile := filepath.Join(homeDir, ".aws", "config")
-		hasConfigRegion := false
-		
-		if data, err := os.ReadFile(configFile); err == nil {
-			// Simple check for region in default profile
-			if strings.Contains(string(data), "region") {
-				hasConfigRegion = true
-			}
-		}
+		// Check ~/.aws/config for region setting
+		hasConfigRegion := bt.hasRegionInConfig()
 		
 		if !hasConfigRegion {
 			return fmt.Errorf("AWS region is not set. Please specify -region flag or set AWS_DEFAULT_REGION environment variable")
@@ -239,6 +230,65 @@ func (bt *BackupTool) initAWS(ctx context.Context) error {
 
 	bt.logger.Printf("AWS S3 client initialized successfully")
 	return nil
+}
+
+// hasRegionInConfig checks if region is configured in ~/.aws/config
+func (bt *BackupTool) hasRegionInConfig() bool {
+	// For testing, allow override via environment variable
+	configFile := os.Getenv("AWS_CONFIG_FILE")
+	if configFile == "" {
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			return false
+		}
+		configFile = filepath.Join(homeDir, ".aws", "config")
+	}
+	data, err := os.ReadFile(configFile)
+	if err != nil {
+		return false
+	}
+	
+	content := string(data)
+	lines := strings.Split(content, "\n")
+	
+	// Determine which profile to check
+	profileName := "default"
+	if bt.config.Profile != "" {
+		profileName = bt.config.Profile
+	}
+	
+	// Look for the profile section
+	var inTargetProfile bool
+	profileSection := "[default]"
+	if profileName != "default" {
+		profileSection = "[profile " + profileName + "]"
+	}
+	
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		
+		// Check if we're entering the target profile section
+		if line == profileSection {
+			inTargetProfile = true
+			continue
+		}
+		
+		// Check if we're entering a different section
+		if strings.HasPrefix(line, "[") && line != profileSection {
+			inTargetProfile = false
+			continue
+		}
+		
+		// If we're in the target profile, look for region setting
+		if inTargetProfile && strings.HasPrefix(line, "region") {
+			parts := strings.SplitN(line, "=", 2)
+			if len(parts) == 2 && strings.TrimSpace(parts[1]) != "" {
+				return true
+			}
+		}
+	}
+	
+	return false
 }
 
 // acquireLock acquires a lock file to prevent concurrent execution
