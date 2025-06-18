@@ -166,6 +166,32 @@ func (bt *BackupTool) initAWS(ctx context.Context) error {
 		loadOptions = append(loadOptions, config.WithRegion(bt.config.AWSRegion))
 	}
 	
+	// Set explicit shared config files for systemd environments
+	// This ensures AWS config files are found even when running as systemd service
+	homeDir, err := os.UserHomeDir()
+	if err == nil {
+		configFile := filepath.Join(homeDir, ".aws", "config")
+		credentialsFile := filepath.Join(homeDir, ".aws", "credentials")
+		
+		bt.logger.Printf("Checking AWS config files in: %s", filepath.Join(homeDir, ".aws"))
+		
+		if _, err := os.Stat(configFile); err == nil {
+			loadOptions = append(loadOptions, config.WithSharedConfigFiles([]string{configFile}))
+			bt.logger.Printf("Found AWS config file: %s", configFile)
+		} else {
+			bt.logger.Printf("AWS config file not found: %s (error: %v)", configFile, err)
+		}
+		
+		if _, err := os.Stat(credentialsFile); err == nil {
+			loadOptions = append(loadOptions, config.WithSharedCredentialsFiles([]string{credentialsFile}))
+			bt.logger.Printf("Found AWS credentials file: %s", credentialsFile)
+		} else {
+			bt.logger.Printf("AWS credentials file not found: %s (error: %v)", credentialsFile, err)
+		}
+	} else {
+		bt.logger.Printf("Failed to get home directory: %v", err)
+	}
+	
 	// Add profile if specified
 	if bt.config.Profile != "" {
 		loadOptions = append(loadOptions, config.WithSharedConfigProfile(bt.config.Profile))
