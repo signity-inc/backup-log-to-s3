@@ -169,16 +169,7 @@ func (bt *BackupTool) initAWS(ctx context.Context) error {
 	// Add profile if specified
 	if bt.config.Profile != "" {
 		loadOptions = append(loadOptions, config.WithSharedConfigProfile(bt.config.Profile))
-	}
-	
-	// Check if region will be available
-	if bt.config.AWSRegion == "" && os.Getenv("AWS_DEFAULT_REGION") == "" && os.Getenv("AWS_REGION") == "" {
-		// Check ~/.aws/config for region setting
-		hasConfigRegion := bt.hasRegionInConfig()
-		
-		if !hasConfigRegion {
-			return fmt.Errorf("AWS region is not set. Please specify -region flag or set AWS_DEFAULT_REGION environment variable")
-		}
+		bt.logger.Printf("Using AWS profile: %s", bt.config.Profile)
 	}
 	
 	// Load config
@@ -186,6 +177,12 @@ func (bt *BackupTool) initAWS(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to load AWS config: %w", err)
 	}
+	
+	// Check if region is available after loading config
+	if cfg.Region == "" {
+		return fmt.Errorf("AWS region is not set. Please specify -region flag or set AWS_DEFAULT_REGION environment variable")
+	}
+	bt.logger.Printf("AWS region loaded: %s", cfg.Region)
 	
 	// Create custom HTTP client if needed
 	if bt.config.NoVerifySSL || bt.config.CABundle != "" || bt.config.CLIReadTimeout > 0 || bt.config.CLIConnectTimeout > 0 {
