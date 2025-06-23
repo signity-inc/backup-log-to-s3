@@ -54,7 +54,7 @@ help: ## ヘルプメッセージ表示
 		group = parts[1]; \
 		if (group != current_group) { \
 			if (current_group != "") print ""; \
-			print group ":"; \
+			printf "\033[32m%s:\033[0m\n", group; \
 			current_group = group; \
 		} \
 		printf "  %-20s %s\n", $$1, $$2; \
